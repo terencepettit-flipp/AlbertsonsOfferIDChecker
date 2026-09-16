@@ -99,7 +99,8 @@
       </div>
       <div>
         <label for="offer">Offer ID</label>
-        <input id="offer" type="text" inputmode="numeric" placeholder="6845220" autocomplete="off">
+        <input id="offer" type="text" placeholder="6845220" autocomplete="off">
+        <div class="hint">One ID, or several separated by <code>,</code> or <code>|</code></div>
       </div>
     </div>
     <div class="actions">
@@ -114,7 +115,7 @@
     <div class="tiles">
       <div class="tile"><b id="tChecked">0</b><span id="tCheckedLbl">Stores checked</span></div>
       <div class="tile ok"><b id="tOk">0</b><span>Returned SKUs</span></div>
-      <div class="tile bad"><b id="tBad">0</b><span>No data / error</span></div>
+      <div class="tile bad"><b id="tBad">0</b><span>Problems</span></div>
     </div>
     <div class="toolbar">
       <div id="runLabel" class="hint"></div>
@@ -184,14 +185,31 @@ function populateStores() {
 bannerSel.addEventListener("change", populateStores);
 populateStores();
 
+/**
+ * Accepts a single Offer ID, a comma-separated list, or a pipe-separated list.
+ * Spaces are stripped and pipes become commas, so all three arrive at the API
+ * in the one form it understands: "6831936,6831843".
+ */
+function normalizeOffers(raw) {
+  return String(raw)
+    .replace(/\s+/g, "")     // "6831936 | 6831843" -> "6831936|6831843"
+    .replace(/\|/g, ",")     // pipes become commas
+    .replace(/,+/g, ",")     // collapse accidental doubles
+    .replace(/^,+|,+$/g, ""); // trim stray leading/trailing separators
+}
+
+const OFFER_LIST_RE = /^\d+(?:,\d+)*$/;
+
 function buildUrl(bannerKey, storeCode, offerId) {
-  const qs = `storeId=${encodeURIComponent(storeCode)}&offerId=${encodeURIComponent(offerId)}`;
+  // offerId is already normalized to digits-and-commas, so commas are left
+  // literal — this is the exact URL a person would paste into a browser.
+  const qs = `storeId=${encodeURIComponent(storeCode)}&offerId=${offerId}`;
   if (!PROXY_BASE) return `${BANNERS[bannerKey].base}${PATH}?${qs}`;
   const tok = PROXY_TOKEN ? `&token=${encodeURIComponent(PROXY_TOKEN)}` : "";
   return `${PROXY_BASE.replace(/\/+$/, "")}/${bannerKey}${PATH}?${qs}${tok}`;
 }
 
-async function checkStore(bannerKey, storeCode, offerId, signal) {
+async function checkStore(bannerKey, storeCode, offerId, requestedIds, signal) {
   const url = buildUrl(bannerKey, storeCode, offerId);
   let res, text = "", body = null;
   try {
@@ -204,11 +222,30 @@ async function checkStore(bannerKey, storeCode, offerId, signal) {
   try { text = await res.text(); body = JSON.parse(text); } catch (e) { /* non-JSON */ }
 
   if (body && Array.isArray(body.offerUPCList)) {
-    const entry = body.offerUPCList.find(e => Array.isArray(e && e.upcList)) || null;
-    const upcs = entry ? entry.upcList : [];
-    if (upcs.length) return { state: "ok", count: upcs.length, http: res.status };
+    // One entry per requested Offer ID. Sum across all of them, and track
+    // which requested ids came back with nothing — the API returns HTTP 200
+    // while silently omitting offers it cannot resolve, so a "success" can
+    // still be a partial answer.
+    const perOffer = new Map();
+    for (const e of body.offerUPCList) {
+      if (e && Array.isArray(e.upcList)) perOffer.set(String(e.offerId), e.upcList.length);
+    }
+    const total = [...perOffer.values()].reduce((a, b) => a + b, 0);
+    const missing = requestedIds.filter(id => !perOffer.get(id));
+    const found = requestedIds.length - missing.length;
+
+    if (total > 0 && !missing.length) {
+      return { state: "ok", count: total, http: res.status, perOffer, found,
+               of: requestedIds.length, requestedIds };
+    }
+    if (total > 0) {
+      return { state: "partial", count: total, http: res.status, perOffer, missing,
+               found, of: requestedIds.length, requestedIds };
+    }
     return { state: "empty", count: 0, http: res.status,
-             detail: "Responded, but the SKU list was empty" };
+             detail: requestedIds.length > 1
+               ? "Responded, but none of these offers returned SKUs"
+               : "Responded, but the SKU list was empty" };
   }
   if (body && Array.isArray(body.errors) && body.errors.length) {
     const e = body.errors[0] || {};
@@ -227,11 +264,38 @@ async function checkStore(bannerKey, storeCode, offerId, signal) {
 
 let controller = null;
 
+// "6831936: 3 · 6831843: 1" — only worth showing for a short multi-offer list.
+// Ordered by the ids as typed, not by response order: the API varies the order
+// of offerUPCList entries between stores, which made rows hard to compare.
+function breakdown(perOffer, requestedIds) {
+  if (!perOffer || perOffer.size < 2 || perOffer.size > 6) return "";
+  return requestedIds
+    .filter(id => perOffer.has(id))
+    .map(id => `${id}: ${perOffer.get(id)}`)
+    .join(" · ");
+}
+
 function renderStatus(r) {
-  if (r.state === "ok")    return `<span class="pill ok">SKUs returned</span>`;
+  const http = r.http ? ` <span class="detail">HTTP ${r.http}</span>` : "";
+
+  if (r.state === "ok") {
+    const bd = breakdown(r.perOffer, r.requestedIds);
+    const multi = r.of > 1
+      ? `<div class="detail">all ${r.of} offers returned SKUs${bd ? ` — ${escapeHtml(bd)}` : ""}</div>`
+      : "";
+    return `<span class="pill ok">SKUs returned</span>${multi}`;
+  }
+
+  if (r.state === "partial") {
+    const shown = r.missing.slice(0, 5).join(", ");
+    const more = r.missing.length > 5 ? ` +${r.missing.length - 5} more` : "";
+    return `<span class="pill empty">Partial</span>${http}` +
+           `<div class="detail">${r.found} of ${r.of} offers returned SKUs · ` +
+           `no SKUs for ${escapeHtml(shown)}${more}</div>`;
+  }
+
   const label = r.state === "empty" ? "Empty list" : "No data / error";
   const cls = r.state === "empty" ? "empty" : "error";
-  const http = r.http ? ` <span class="detail">HTTP ${r.http}</span>` : "";
   return `<span class="pill ${cls}">${label}</span>${http}<div class="detail">${escapeHtml(r.detail || "")}</div>`;
 }
 function escapeHtml(s) {
@@ -241,12 +305,15 @@ function escapeHtml(s) {
 async function run() {
   const bannerKey = bannerSel.value;
   const b = BANNERS[bannerKey];
-  const offerId = offerIn.value.trim();
-  if (!/^\d+$/.test(offerId)) {
-    msg.innerHTML = `<span class="err">Enter a numeric Offer ID.</span>`;
+  const offerId = normalizeOffers(offerIn.value);
+  if (!OFFER_LIST_RE.test(offerId)) {
+    msg.innerHTML = `<span class="err">Enter an Offer ID, or a list separated by commas or pipes.</span>`;
     offerIn.focus();
     return;
   }
+  const requestedIds = offerId.split(",");
+  // Show the cleaned-up value so it is obvious what was actually sent.
+  offerIn.value = offerId;
   const one = storeSel.value;
   const targets = one ? b.stores.filter(s => s[0] === one) : b.stores.slice();
   if (!targets.length) { msg.innerHTML = `<span class="err">No stores selected.</span>`; return; }
@@ -256,7 +323,8 @@ async function run() {
   runBtn.disabled = true; cancelBtn.hidden = false;
   results.hidden = false; corsNote.style.display = "none";
   $("runLabel").textContent =
-    `Offer ${offerId} · ${b.label} · ${targets.length} store${targets.length > 1 ? "s" : ""}`;
+    `${requestedIds.length > 1 ? `${requestedIds.length} offers` : `Offer ${offerId}`}` +
+    ` · ${b.label} · ${targets.length} store${targets.length > 1 ? "s" : ""}`;
   $("tCheckedLbl").textContent = `of ${targets.length} stores checked`;
 
   rowsEl.innerHTML = "";
@@ -291,14 +359,19 @@ async function run() {
       const s = targets[next++];
       let r;
       try {
-        r = await checkStore(bannerKey, s[0], offerId, controller.signal);
+        r = await checkStore(bannerKey, s[0], offerId, requestedIds, controller.signal);
       } catch (err) {
         if (err.name === "AbortError") { aborted = true; return; }
         r = { state: "error", detail: String(err.message || err) };
       }
       const tr = rowFor.get(s[0]);
-      tr.className = r.state === "ok" ? "" : (r.state === "empty" ? "r-empty" : "r-error");
-      tr.children[3].textContent = r.state === "ok" ? r.count : (r.state === "empty" ? "0" : "—");
+      // "partial" returned some SKUs but not for every requested offer, so it
+      // is amber like "empty" and counts as a problem, not a pass.
+      tr.className = r.state === "ok" ? ""
+                   : (r.state === "empty" || r.state === "partial") ? "r-empty" : "r-error";
+      tr.children[3].textContent =
+        (r.state === "ok" || r.state === "partial") ? r.count
+        : r.state === "empty" ? "0" : "—";
       tr.children[4].innerHTML = renderStatus(r);
       tr.dataset.bad = r.state === "ok" ? "0" : "1";
       if (r.state === "ok") ok++; else bad++;
