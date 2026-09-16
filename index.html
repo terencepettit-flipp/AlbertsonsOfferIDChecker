@@ -28,7 +28,6 @@
         border-radius:7px;background:#fff;color:var(--ink);font:inherit}
   select:focus,input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
   .hint{font-size:12px;color:var(--muted);margin-top:6px}
-  .filter{margin-bottom:6px}
   .actions{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap}
   button{font:inherit;font-weight:600;padding:10px 18px;border-radius:7px;border:1px solid transparent;cursor:pointer}
   #run{background:var(--accent);color:var(--accent-ink)}
@@ -64,8 +63,18 @@
   button.copy.failed{background:var(--bad-bg);border-color:var(--bad-line);color:var(--bad-ink)}
   td.copycell{text-align:right;white-space:nowrap}
   .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
-  .toolbar label{display:flex;align-items:center;gap:6px;text-transform:none;
-                 font-size:13px;letter-spacing:0;color:var(--ink);margin:0}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:#fff}
+  .seg label{margin:0;display:block;text-transform:none;letter-spacing:0}
+  .seg input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .seg span{display:block;padding:5px 12px;font-size:12px;font-weight:600;color:var(--muted);
+            cursor:pointer;border-left:1px solid var(--line);white-space:nowrap;user-select:none}
+  .seg label:first-child span{border-left:none}
+  .seg span:hover{background:#f4f6f9}
+  .seg input:checked + span{background:var(--accent);color:#fff}
+  .seg input:checked + span:hover{background:var(--accent)}
+  .seg input:focus-visible + span{outline:2px solid var(--accent);outline-offset:-2px}
+  .seg b{font-variant-numeric:tabular-nums;opacity:.75;margin-left:2px}
+  .emptymsg{padding:18px 12px;text-align:center;color:var(--muted);font-size:13px}
   .note{border-left:3px solid var(--warn-line);background:var(--warn-bg);color:var(--warn-ink);
         padding:10px 12px;border-radius:0 7px 7px 0;font-size:13px;margin-top:14px;display:none}
 </style>
@@ -85,8 +94,7 @@
         <div class="hint" id="bannerHint"></div>
       </div>
       <div>
-        <label for="store">Store <span style="text-transform:none;font-weight:400">(optional)</span></label>
-        <input id="storeFilter" class="filter" type="text" placeholder="Filter by store code, name or city…" autocomplete="off">
+        <label for="store">Store</label>
         <select id="store"></select>
       </div>
       <div>
@@ -110,7 +118,14 @@
     </div>
     <div class="toolbar">
       <div id="runLabel" class="hint"></div>
-      <label><input type="checkbox" id="onlyBad"> Show problems only</label>
+      <div class="seg" role="group" aria-label="Filter rows">
+        <label><input type="radio" name="rowFilter" value="all" checked>
+          <span>All <b id="cAll">0</b></span></label>
+        <label><input type="radio" name="rowFilter" value="ok">
+          <span>SKUs returned <b id="cOk">0</b></span></label>
+        <label><input type="radio" name="rowFilter" value="bad">
+          <span>Problems <b id="cBad">0</b></span></label>
+      </div>
     </div>
     <div class="tablewrap">
       <table>
@@ -120,6 +135,7 @@
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
+      <div class="emptymsg" id="emptyMsg" hidden>No stores match this filter.</div>
     </div>
     <div class="note" id="corsNote">
       <strong>Every request failed before reaching the API.</strong>
@@ -149,10 +165,10 @@ const PROXY_TOKEN = "";
 const CONCURRENCY = 6;
 
 const $ = id => document.getElementById(id);
-const bannerSel = $("banner"), storeSel = $("store"), storeFilter = $("storeFilter"),
+const bannerSel = $("banner"), storeSel = $("store"),
       offerIn = $("offer"), runBtn = $("run"), cancelBtn = $("cancel"), msg = $("msg"),
       results = $("results"), rowsEl = $("rows"), barFill = $("barFill"),
-      onlyBad = $("onlyBad"), corsNote = $("corsNote");
+      emptyMsg = $("emptyMsg"), corsNote = $("corsNote");
 
 for (const [key, b] of Object.entries(BANNERS)) {
   bannerSel.add(new Option(`${b.label} (${b.stores.length} stores)`, key));
@@ -160,17 +176,12 @@ for (const [key, b] of Object.entries(BANNERS)) {
 
 function populateStores() {
   const b = BANNERS[bannerSel.value];
-  const q = storeFilter.value.trim().toLowerCase();
-  const matches = b.stores.filter(s =>
-    !q || s[0].toLowerCase().includes(q) || s[1].toLowerCase().includes(q) || s[2].toLowerCase().includes(q));
   storeSel.innerHTML = "";
   storeSel.add(new Option(`All ${b.stores.length} stores`, ""));
-  for (const s of matches) storeSel.add(new Option(`${s[0]} — ${s[1]} (${s[2]})`, s[0]));
+  for (const s of b.stores) storeSel.add(new Option(`${s[0]} — ${s[1]} (${s[2]})`, s[0]));
   $("bannerHint").textContent = b.base;
-  if (q && !matches.length) storeSel.add(new Option("No store matches that filter", "", true, true));
 }
-bannerSel.addEventListener("change", () => { storeFilter.value = ""; populateStores(); });
-storeFilter.addEventListener("input", populateStores);
+bannerSel.addEventListener("change", populateStores);
 populateStores();
 
 function buildUrl(bannerKey, storeCode, offerId) {
@@ -267,6 +278,9 @@ async function run() {
     $("tChecked").textContent = done;
     $("tOk").textContent = ok;
     $("tBad").textContent = bad;
+    $("cAll").textContent = targets.length;
+    $("cOk").textContent = ok;
+    $("cBad").textContent = bad;
     barFill.style.width = `${(done / targets.length) * 100}%`;
   };
   tick();
@@ -309,10 +323,19 @@ async function run() {
 }
 
 function applyFilter() {
-  const only = onlyBad.checked;
+  const picked = document.querySelector('input[name="rowFilter"]:checked');
+  const mode = picked ? picked.value : "all";
+  let visible = 0;
   for (const tr of rowsEl.children) {
-    tr.hidden = only && tr.dataset.bad !== "1";
+    // dataset.bad is "0" for a pass and "1" for a problem; it is undefined
+    // while a row is still pending, so pending rows show only under "All".
+    const show = mode === "all" ? true
+               : mode === "ok"  ? tr.dataset.bad === "0"
+               :                  tr.dataset.bad === "1";
+    tr.hidden = !show;
+    if (show) visible++;
   }
+  emptyMsg.hidden = visible > 0 || rowsEl.children.length === 0;
 }
 async function copyText(text) {
   try {
@@ -348,7 +371,9 @@ rowsEl.addEventListener("click", async e => {
   }, 1500);
 });
 
-onlyBad.addEventListener("change", applyFilter);
+for (const r of document.querySelectorAll('input[name="rowFilter"]')) {
+  r.addEventListener("change", applyFilter);
+}
 cancelBtn.addEventListener("click", () => controller && controller.abort());
 runBtn.addEventListener("click", run);
 offerIn.addEventListener("keydown", e => { if (e.key === "Enter") run(); });
