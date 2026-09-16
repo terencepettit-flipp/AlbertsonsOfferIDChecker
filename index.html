@@ -137,12 +137,11 @@ const BANNERS = {"united":{"label":"United Supermarkets","base":"https://www.sho
 const PATH = "/abs/pub/dce/offergallery/J4UProgram1/offer/upcs";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE ONLY LINE YOU NEED TO CHANGE.
-// Leave "" to call the banner sites directly — a browser will block every
-// response, because the APIs only allow requests from the banner's own site.
-// Paste your Cloudflare Worker URL here to make the tool work, e.g.
-//   const PROXY_BASE = "https://albertsons-offer-check.flipp.workers.dev";
-const PROXY_BASE = "";
+// The CORS proxy this page calls. Must be https:// — a page served over HTTPS
+// (GitHub Pages) cannot call an http:// address.
+// Set to "" to call the banner sites directly, which a browser always blocks;
+// useful only to demonstrate why the proxy is needed.
+const PROXY_BASE = "https://albertsons-offer-check.terence-pettit.workers.dev";
 // Only if you set a SHARED_TOKEN secret on the Worker:
 const PROXY_TOKEN = "";
 // ─────────────────────────────────────────────────────────────────────────────
