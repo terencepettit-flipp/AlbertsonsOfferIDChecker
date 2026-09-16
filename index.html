@@ -57,6 +57,12 @@
   .pill.error{background:#fff;color:var(--bad-ink);border-color:var(--bad-line)}
   .pill.empty{background:#fff;color:var(--warn-ink);border-color:var(--warn-line)}
   .detail{font-size:12px;color:inherit;opacity:.85}
+  button.copy{padding:3px 10px;font-size:11px;font-weight:600;border:1px solid var(--line);
+        border-radius:6px;background:#fff;color:var(--muted);white-space:nowrap}
+  button.copy:hover{border-color:var(--accent);color:var(--accent)}
+  button.copy.copied{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-ink)}
+  button.copy.failed{background:var(--bad-bg);border-color:var(--bad-line);color:var(--bad-ink)}
+  td.copycell{text-align:right;white-space:nowrap}
   .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
   .toolbar label{display:flex;align-items:center;gap:6px;text-transform:none;
                  font-size:13px;letter-spacing:0;color:var(--ink);margin:0}
@@ -110,7 +116,7 @@
       <table>
         <thead><tr>
           <th>Store code</th><th>Store name</th><th>City</th>
-          <th class="num">SKUs</th><th>Status</th>
+          <th class="num">SKUs</th><th>Status</th><th>API call</th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -118,9 +124,10 @@
     <div class="note" id="corsNote">
       <strong>Every request failed before reaching the API.</strong>
       That is the signature of the browser blocking these calls (the endpoints only allow
-      requests coming from the banner&rsquo;s own website). It is not evidence that the Offer ID is bad
-      &mdash; the requests never got a readable answer. Ask engineering for a proxy, or run the tool
-      from the banner&rsquo;s own site, then re-check.
+      requests coming from the banner&rsquo;s own website). It is <em>not</em> evidence that the
+      Offer ID is bad &mdash; the requests never got a readable answer, so this report says nothing
+      about the offer. Fix: set <code>PROXY_BASE</code> near the top of this file&rsquo;s
+      <code>&lt;script&gt;</code> to your Cloudflare Worker URL, then re-run.
     </div>
   </div>
 </div>
@@ -128,6 +135,18 @@
 <script>
 const BANNERS = {"united":{"label":"United Supermarkets","base":"https://www.shopunitedsupermarkets.com","stores":[["1545","United Supermarket #545","Abilene, TX"],["3547","United Supermarket #547","Abilene, TX"],["4548","United Supermarket #548","Abilene, TX"],["22","United Supermarket #0022","Amarillo, TX"],["823","United Supermarket #0823","Amarillo, TX"],["133","United Supermarket #133","Amarillo, TX"],["2529","United Supermarket #2529","Amarillo, TX"],["3527","United Supermarket #3527","Amarillo, TX"],["3530","United Supermarket #3530","Amarillo, TX"],["655","United Supermarket #655","Andrews, TX"],["539","United Supermarket #539","Borger, TX"],["152","United Supermarket #0152","Breckenridge, TX"],["3536","United Supermarket #3536","Brownfield, TX"],["554","Brownwood","Brownwood, TX"],["4515","United Supermarket #4515","Burkburnett, TX"],["3532","United Supermarket #532","Canyon, TX"],["718","United Supermarket #718","Childress, TX"],["167","United Supermarket #578","Clyde, TX"],["34","United Supermarket #034","Dalhart, TX"],["2542","United Supermarket #2542","Dumas, TX"],["620","United Supermarket #0620","Graham, TX"],["210","United Supermarkets #510","Hereford, TX"],["2540","United Supermarket #540","Lamesa, TX"],["3509","United Supermarket #3509","Levelland, TX"],["3535","United Supermarket #3535","Littlefield, TX"],["3155","Lubbick","Lubbick, TX"],["657","#657 United","Lubbock, TX"],["3552","6313 4th Street","Lubbock, TX"],["605","United Supermarket #0605","Lubbock, TX"],["2801","United Supermarket #2801","Lubbock, TX"],["3506","United Supermarket #3506","Lubbock, TX"],["3537","United Supermarket #3537","Lubbock, TX"],["4551","United Supermarket #551","Lubbock, TX"],["671","United Supermarket #671","Midland, TX"],["672","Unuted Supermarkets #672","Midland, TX"],["3550","United Supermarket #550","Muleshoe, TX"],["3676","United Supermarket #676","Odessa, TX"],["3677","United Supermarket #677","Odessa, TX"],["2128","United Supermarket #2128","Pampa, TX"],["663","2783 S CEDAR STREET","Pecos, TX"],["1325","United Supermarket #1325","Perryton, TX"],["1607","United Supermarket #1607","Plainview, TX"],["612","United Supermarket #0612","Post, TX"],["3214","United Supermarket #3214","Quanah, TX"],["172","United Supermarket #579","Seminole, TX"],["146","United Supermarket #146","Seymour, TX"],["2211","United Supermarket #2211","Slaton, TX"],["4549","United Supermarket #549","Snyder, TX"],["1313","United Supermarket #1313","Vernon, TX"],["221","United Supermarket #0221","Wichita Falls, TX"],["1216","United Supermarket #516","Wichita Falls, TX"],["634","United Supermarkets #0634","Wichita Falls, TX"]]},"albertsons":{"label":"Albertsons","base":"https://www.albertsons.com","stores":[["3215","Albertsons S MacArthur Dr","Alexandria, LA"],["2543","Albertsons W Commonwealth Ave","Alhambra, CA"],["704","Albertsons Alpine Blvd","Alpine, CA"],["3174","Albertsons S 25th E","Ammon, ID"],["4022","Albertsons E Park Ave","Anaconda, MT"],["194","Albertsons S State College Blvd","Anaheim, CA"],["3513","Albertsons Hwy 18","Apple Valley, CA"],["561","Albertsons E Live Oak Ave","Arcadia, CA"],["31","Albertsons 12th Ave","Ardmore, OK"],["4163","Albertsons S Cooper St","Arlington, TX"],["4142","Albertsons SW Plaza Shopping Center","Arlington, TX"],["3042","Albertsons US Hwy 287","Arlington, TX"],["573","Albertsons Ashland St","Ashland, OR"],["4290","Albertsons Northwest Pkwy","Azle, TX"],["3211","Albertsons Campbell St","Baker City, OR"],["336","Albertsons Brundage Ln","Bakersfield, CA"],["1398","Albertsons Coffee Rd","Bakersfield, CA"],["3172","Albertsons E Stockdale Hwy","Bakersfield, CA"],["358","Albertsons Mt Vernon Ave","Bakersfield, CA"],["3129","Albertsons Panama Ln","Bakersfield, CA"],["377","Albertsons Rosedale Hwy","Bakersfield, CA"],["3364","Albertsons White Ln","Bakersfield, CA"],["3512","Albertsons S Highland Springs Ave #7","Banning, CA"],["3747","Albertsons Airline Hwy","Baton Rouge, LA"],["712","Albertsons Airline Hwy","Baton Rouge, LA"],["3792","Albertsons Bluebonnet Blvd","Baton Rouge, LA"],["709","Albertsons College Dr","Baton Rouge, LA"],["3713","Albertsons George O'Neal Rd","Baton Rouge, LA"],["3750","Albertsons Government St","Baton Rouge, LA"],["1311","Albertsons Perkins Rd","Baton Rouge, LA"],["2592","Albertsons W Main St","Battle Ground, WA"],["1262","Albertsons Airport Freeway","Bedford, TX"],["9","Albertsons Jackrabbit Ln","Belgrade, MT"],["2599","Albertsons NE 3rd St","Bend, OR"],["47","Albertsons Central Ave","Billings, MT"],["630","Albertsons Central Ave","Billings, MT"],["38","Albertsons Grand Ave","Billings, MT"],["4041","Albertsons Grand Ave","Billings, MT"],["3367","Albertsons Grand Ave","Billings, MT"],["1227","Albertsons Main St","Billings, MT"],["4025","Albertsons N 27th St","Billings, MT"],["3587","Albertsons E Hobson Way","Blythe, CA"],["169","Albertsons E Parkcenter Blvd","Boise, ID"],["4602-F","Albertsons Express S Apple","Boise, ID"],["154","Albertsons N Cole Rd","Boise, ID"],["177","Albertsons N Eagle Rd","Boise, ID"],["199","Albertsons S Broadway Ave","Boise, ID"],["184","Albertsons S Federal Way","Boise, ID"],["193","Albertsons S Vista Ave","Boise, ID"],["3339","Albertsons W Lake Hazel Rd","Boise, ID"],["160","Albertsons W Overland Rd","Boise, ID"],["162","Albertsons W Overland Rd","Boise, ID"],["101","Albertsons W State St","Boise, ID"],["156","Albertsons W State St","Boise, ID"],["189","Albertsons W State St","Boise, ID"],["161","Albertsons W Ustick Rd","Boise, ID"],["93","Albertsons Nevada Hwy","Boulder City, NV"],["6","Albertsons S 23rd Ave","Bozeman, MT"],["2141","Albertsons E Imperial Hwy","Brea, CA"],["2756","Albertsons Albertson Pkwy","Broussard, LA"],["3324","Albertsons E Hwy 246","Buellton, CA"],["1105","Albertsons Valley View St","Buena Park, CA"],["4279","Albertsons NE Alsbury Blvd","Burleson, TX"],["1335","Albertsons Agoura Rd","Calabasas, CA"],["166","Albertsons Blaine St","Caldwell, ID"],["103","Albertsons Cleveland Blvd","Caldwell, ID"],["3431","Albertsons Arneill Rd","Camarillo, CA"],["355","Albertsons Casitas Pass Rd","Carpinteria, CA"],["269","Albertsons N Josey Ln","Carrollton, TX"],["2935","Albertsons E Carson St","Carson, CA"],["3859","Albertsons E Sepulveda Blvd","Carson, CA"],["60","Albertsons CY Ave","Casper, WY"],["62","Albertsons E 2nd St","Casper, WY"],["4133","Albertsons E FM 1382","Cedar Hill, TX"],["3595","Albertsons Plaza Blvd","Central Point, OR"],["1221","Albertsons E Riggs Rd","Chandler, AZ"],["981","Albertsons S Alma School Rd","Chandler, AZ"],["2997","Albertsons W Ray Rd","Chandler, AZ"],["65","Albertsons E Pershing Blvd","Cheyenne, WY"],["66","Albertsons Yellowstone Rd","Cheyenne, WY"],["2515","Albertsons Grand Ave","Chino Hills, CA"],["3592","Albertsons Los Serranos Country Club Dr","Chino Hills, CA"],["524","Albertsons Central Ave","Chino, CA"],["757","Albertsons 3rd Ave","Chula Vista, CA"],["241","Albertsons Bridge St","Clarkston, WA"],["4294","Albertsons W Katherine P Raines","Cleburne, TX"],["2061","Albertsons 17th St","Cody, WY"],["4191","Albertsons FM 2181","Corinth, TX"],["1641","Albertsons Archibald Ave","Corona, CA"],["2796","Albertsons E Ontario Ave","Corona, CA"],["728","Albertsons W Foothill Pkwy","Corona, CA"],["532","Albertsons -c Harbor Blvd","Costa Mesa, CA"],["33","Albertsons W Main St","Cut Bank, MT"],["4289","Albertsons Casa Linda Plaza","Dallas, TX"],["2558","Albertsons Del Obispo St","Dana Point, CA"],["716","Albertsons W Crawford St","Denison, TX"],["4152","Albertsons W University Dr","Denton, TX"],["3554","Albertsons S Diamond Bar Blvd","Diamond Bar, CA"],["140","Albertsons Firestone Blvd","Downey, CA"],["801","Albertsons W College Dr","Durango, CO"],["182","Albertsons S Eagle Rd","Eagle, ID"],["3202","Albertsons Broadway St","El Cajon, CA"],["2783","Albertsons Jamacha Rd","El Cajon, CA"],["227","Albertsons Lucky - 351 Wake Ave","El Centro, CA"],["3999","Albertsons Kenworthy","El Paso, TX"],["1936","Albertsons Mesa St","El Paso, TX"],["1006","Albertsons Montana Ave","El Paso, TX"],["2016","Albertsons Montwood Dr","El Paso, TX"],["2994","Albertsons N Desert Blvd","El Paso, TX"],["3932","Albertsons N Mesa St","El Paso, TX"],["3249","Albertsons N. Zaragoza Rd","El Paso, TX"],["934","Albertsons Yarbrough Dr","El Paso, TX"],["155","Albertsons Idaho St","Elko, NV"],["126","Albertsons Hwy 16","Emmett, ID"],["4713","Albertsons E Valley Pkwy","Escondido, CA"],["1705","Albertsons W Valley Pkwy","Escondido, CA"],["572","Albertsons Coburg Rd","Eugene, OR"],["560","Albertsons Division Ave","Eugene, OR"],["3564","Albertsons Hilyard St","Eugene, OR"],["513","Albertsons Royal Ave","Eugene, OR"],["3529","Albertsons W 18th Ave","Eugene, OR"],["106","Albertsons N Main St","Euless, TX"],["4786","Albertsons S Mission Rd","Fallbrook, CA"],["824","Albertsons E Main St","Farmington, NM"],["232","Albertsons Alton Rd","Fort Worth, TX"],["4223","Albertsons Clifford St","Fort Worth, TX"],["4272","Albertsons E Loop 820","Fort Worth, TX"],["4124","Albertsons Oakmont Blvd","Fort Worth, TX"],["4277","Albertsons Sycamore School Rd","Fort Worth, TX"],["4286","Albertsons W Freeway","Fort Worth, TX"],["4151","Albertsons Western Center Blvd","Fort Worth, TX"],["170","Albertsons Brookhurst","Fountain Valley, CA"],["1157","Albertsons Brookhurst St","Fountain Valley, CA"],["819","Albertsons N Placentia Ave","Fullerton, CA"],["1165","Albertsons W Malvern Ave","Fullerton, CA"],["2902","Albertsons E 66th Ave","Gallup, NM"],["108","Albertsons W Artesia Blvd","Gardena, CA"],["4265","Albertsons Broadway Blvd","Garland, TX"],["4406","Albertsons NW 51st Ave","Gig Harbor, WA"],["23","Albertsons E Warner Rd","Gilbert, AZ"],["67","Albertsons S Douglas Hwy","Gillette, WY"],["3433","Albertsons US Highway 2","Glasgow, MT"],["3343","Albertsons US Highway 2","Glasgow, MT"],["4012","Albertsons US Hwy 2","Glasgow, MT"],["3941","Albertsons W Cactus Rd","Glendale, AZ"],["4023","Albertsons N Harmon St","Glendive, MT"],["601","Albertsons W Route 66","Glendora, CA"],["357","Albertsons Calle Real","Goleta, CA"],["354","Albertsons Hollister Ave #27","Goleta, CA"],["4231","Albertsons N Carrier Pkwy","Grand Prairie, TX"],["3541","Albertsons Allen Creek Rd","Grants Pass, OR"],["37","Albertsons 10th Ave S","Great Falls, MT"],["35","Albertsons 3rd St NW","Great Falls, MT"],["130","Albertsons N Main St","Hailey, ID"],["4040","Albertsons N 1st St","Hamilton, MT"],["714","Albertsons W Thomas St","Hammond, LA"],["832","Albertsons Main St S","Harlem, MT"],["254","Albertsons W Prairie Ave","Hayden, ID"],["3004","Albertsons Fee St","Helena, MT"],["4008","Albertsons N Montana Ave","Helena, MT"],["3207","Albertsons Bicentennial Pkwy","Henderson, NV"],["3205","Albertsons College Dr","Henderson, NV"],["3206","Albertsons N Boulder Hwy","Henderson, NV"],["2","Albertsons S Stephanie St","Henderson, NV"],["2303","Albertsons Boulder Ave","Highland, CA"],["590","Albertsons SW Baseline Rd","Hillsboro, OR"],["3366","Albertsons E Wyoming Ave","Homedale, ID"],["30","Albertsons Eastlake Blvd","Horizon City, TX"],["724","Albertsons Beach Blvd","Huntington Beach, CA"],["802","Albertsons Bolsa Chica St","Huntington Beach, CA"],["110","Albertsons Yorktown Ave","Huntington Beach, CA"],["138","Albertsons E 17th St","Idaho Falls, ID"],["145","Albertsons W Broadway St","Idaho Falls, ID"],["3596","Albertsons Alton Pkwy","Irvine, CA"],["597","Albertsons Campus Dr","Irvine, CA"],["825","Albertsons Irvine Blvd","Irvine, CA"],["2591","Albertsons Jeffrey Rd","Irvine, CA"],["527","Albertsons Quail Hill Pkwy","Irvine, CA"],["36","Albertsons 2200 W Shady Grove Rd","Irving, TX"],["183","Albertsons Buffalo Way","Jackson, WY"],["18","Albertsons W Idaho St","Kalispell, MT"],["3253X","Albertsons W Clearwater Ave","Kennewick, WA"],["3337","Albertsons E Avalon St","Kuna, ID"],["158","Albertsons W Whittier Blvd","La Habra, CA"],["710","Albertsons Fletcher Pkwy","La Mesa, CA"],["148","Albertsons Rosecrans Ave","La Mirada, CA"],["552","Albertsons Crown Valley Pkwy Suite B","Ladera Ranch, CA"],["719","Albertsons Ambassador Caffery","Lafayette, LA"],["775","Albertsons Ambassador Caffery","Lafayette, LA"],["120","Albertsons Johnston St","Lafayette, LA"],["2556","Albertsons Alicia Pkwy","Laguna Niguel, CA"],["208","Albertsons Golden Lantern","Laguna Niguel, CA"],["2798","Albertsons Country Club Rd","Lake Charles, LA"],["717","Albertsons Ryan St S","Lake Charles, LA"],["798","Albertsons Riverside Dr","Lake Elsinore, CA"],["3416","Albertsons Bothell Way NE","Lake Forest Park, WA"],["3526","Albertsons Muirlands Blvd","Lake Forest, CA"],["3204","Albertsons Mcculloch Blvd","Lake Havasu City, AZ"],["3531","Albertsons Boones Ferry Rd","Lake Oswego, OR"],["4150","Albertsons Lake Worth Blvd","Lake Worth, TX"],["738","Albertsons Winter Gardens Blvd","Lakeside, CA"],["191","Albertsons Del Amo Blvd","Lakewood, CA"],["1322","Albertsons 20th St W","Lancaster, CA"],["925","Albertsons E Lohman Ave","Las Cruces, NM"],["3913","Albertsons N Main St","Las Cruces, NM"],["1909","Albertsons S El Paseo Rd","Las Cruces, NM"],["2804","Albertsons Blue Diamond Rd","Las Vegas, NV"],["332","Albertsons Blue Diamond Rd","Las Vegas, NV"],["1059","Albertsons Boulder Hwy","Las Vegas, NV"],["4091","Albertsons E Charleston Blvd","Las Vegas, NV"],["45","Albertsons E Charleston Blvd","Las Vegas, NV"],["662","Albertsons E Desert Inn Rd","Las Vegas, NV"],["4039","Albertsons E Flamingo Rd","Las Vegas, NV"],["89","Albertsons E Lake Mead Blvd","Las Vegas, NV"],["4009","Albertsons Farm Rd","Las Vegas, NV"],["4011","Albertsons N Buffalo Dr","Las Vegas, NV"],["3489","Albertsons N Hualapai Way","Las Vegas, NV"],["4004","Albertsons S Durango Dr","Las Vegas, NV"],["4017","Albertsons S Eastern Ave","Las Vegas, NV"],["13","Albertsons S Fort Apache Rd","Las Vegas, NV"],["4006","Albertsons S Maryland Pkwy","Las Vegas, NV"],["4024","Albertsons S Nellis Blvd","Las Vegas, NV"],["276","Albertsons S Rainbow Blvd","Las Vegas, NV"],["46","Albertsons S Rainbow Blvd","Las Vegas, NV"],["3333","Albertsons Village Center Circle","Las Vegas, NV"],["90","Albertsons W Ann Rd","Las Vegas, NV"],["3016","Albertsons W Charleston Blvd","Las Vegas, NV"],["460","Albertsons W Charleston Blvd","Las Vegas, NV"],["212","Albertsons W Cheyenne Ave","Las Vegas, NV"],["118","Albertsons W Craig Rd","Las Vegas, NV"],["61","Albertsons W Craig Rd","Las Vegas, NV"],["3021","Albertsons W Flamingo Rd","Las Vegas, NV"],["129","Albertsons W Tropicana Ave","Las Vegas, NV"],["3447","Albertsons 1st Ave","Laurel, MT"],["707","Albertsons Broadway","Lemon Grove, CA"],["238","Albertsons 21st St","Lewiston, ID"],["19","Albertsons W Janeaux St","Lewistown, MT"],["3926","Albertsons W Indian School Rd","Litchfield Park, AZ"],["42","Albertsons W Park St","Livingston, MT"],["3171","Albertsons N H St","Lompoc, CA"],["132","Albertsons E Willow St","Long Beach, CA"],["4112","Albertsons McCann Rd","Longview, TX"],["4131","Albertsons Crenshaw Blvd","Los Angeles, CA"],["387","Albertsons Hillhurst Ave","Los Angeles, CA"],["2013","Albertsons S 3rd St E","Malta, MT"],["471X","Albertsons Marysville Mall #60","Marysville, WA"],["3360","Albertsons E Lake St","McCall, ID"],["4234","Albertsons S Central Expy","McKinney, TX"],["2528","Albertsons SW Keck Dr","McMinnville, OR"],["3508","Albertsons N Phoenix Rd","Medford, OR"],["3593","Albertsons Ross Ln","Medford, OR"],["164","Albertsons E Fairview Ave","Meridian, ID"],["3195","Albertsons Market Street E Fairview Ave","Meridian, ID"],["3065","Albertsons S Eagle Rd","Meridian, ID"],["180","Albertsons W Cherry Ln","Meridian, ID"],["1002","Albertsons E Baseline Rd","Mesa, AZ"],["3989","Albertsons N Power Rd","Mesa, AZ"],["1948","Albertsons N Val Vista Dr","Mesa, AZ"],["958","Albertsons S Power Rd","Mesa, AZ"],["980","Albertsons W Baseline Rd","Mesa, AZ"],["4129","Albertsons Motley Dr","Mesquite, TX"],["4187","Albertsons S Beltline Rd","Mesquite, TX"],["39","Albertsons S Haynes Ave","Miles City, MT"],["2549","Albertsons Alicia Pkwy","Mission Viejo, CA"],["24","Albertsons E Broadway St","Missoula, MT"],["43","Albertsons N Reserve St","Missoula, MT"],["20","Albertsons Oxford St","Missoula, MT"],["1010","Albertsons Russell St","Missoula, MT"],["1181","Albertsons Via Campo St","Montebello, CA"],["1345","Albertsons Quintana Rd","Morro Bay, CA"],["165","Albertsons N Main St","Mountain Home, ID"],["2743","Albertsons California Oaks Rd","Murrieta, CA"],["609","Albertsons Scott Rd","Murrieta, CA"],["734","Albertsons Winchester Rd","Murrieta, CA"],["176","Albertsons 12th Ave Rd","Nampa, ID"],["1602","Albertsons 12th Ave S","Nampa, ID"],["391","Albertsons S Reino Rd","Newbury Park, CA"],["4005","Albertsons W Ann Rd","North Las Vegas, NV"],["359","Albertsons Balboa Blvd","Northridge, CA"],["733","Albertsons Marron Rd","Oceanside, CA"],["2767","Albertsons Mission Ave","Oceanside, CA"],["740","Albertsons Oceanside Blvd","Oceanside, CA"],["3417","Albertsons Pacific Ave SE","Olympia, WA"],["131","Albertsons Westpark Plaza","Ontario, OR"],["1585","Albertsons E Chapman Ave","Orange, CA"],["2551","Albertsons E Chapman Ave","Orange, CA"],["3534","Albertsons N Tustin Ave","Orange, CA"],["1394","Albertsons E Clark Ave","Orcutt, CA"],["571","Albertsons S Beavercreek Rd","Oregon City, OR"],["341","Albertsons S Hwy 160","Pahrump, NV"],["3559","Albertsons Hwy 111","Palm Desert, CA"],["567","Albertsons Washington St","Palm Desert, CA"],["1569","Albertsons N Sunrise Way #1","Palm Springs, CA"],["1333","Albertsons Tierra Subida Ave","Palmdale, CA"],["228","Albertsons N 20th Ave","Pasco, WA"],["314","Albertsons Niblick Rd","Paso Robles, CA"],["168","Albertsons S Main St","Payette, ID"],["1971","Albertsons W Bell Rd","Peoria, AZ"],["991","Albertsons W Deer Valley Rd","Peoria, AZ"],["2952","Albertsons N 19th Ave","Phoenix, AZ"],["2985","Albertsons N Cave Creek Rd","Phoenix, AZ"],["25","Albertsons N Tatum Blvd Suite 76","Phoenix, AZ"],["4","Albertsons W Carefree Hwy","Phoenix, AZ"],["159","Albertsons E Benton St","Pocatello, ID"],["475","Albertsons Olney Ave SE","Port Orchard, WA"],["564","Albertsons NE 181st St","Portland, OR"],["575","Albertsons NE Prescott","Portland, OR"],["505","Albertsons SW Beaverton Hwy","Portland, OR"],["3435","Albertsons Coulter Ave","Powell, WY"],["816","Albertsons Hwy 50 W","Pueblo, CO"],["3106","Albertsons Canyon Rd E","Puyallup, WA"],["725","Albertsons Main St","Ramona, CA"],["3177","Albertsons Foothill Blvd","Rancho Cucamonga, CA"],["3520","Albertsons Kenyon Way","Rancho Cucamonga, CA"],["2586","Albertsons Monterey Ave","Rancho Mirage, CA"],["1319","Albertsons E Cypress Ave","Redlands, CA"],["3418","Albertsons 236th Ave NE","Redmond, WA"],["453","Albertsons NE Sunset Blvd","Renton, WA"],["2305","Albertsons Saticoy St","Reseda, CA"],["171","Albertsons N 2nd E","Rexburg, ID"],["4260","Albertsons E Buckingham Dr","Richardson, TX"],["1376","Albertsons N Norma St","Ridgecrest, CA"],["331","Albertsons S China Lake Blvd","Ridgecrest, CA"],["2514","Albertsons Trautwein Rd","Riverside, CA"],["2572","Albertsons Van Buren Blvd","Riverside, CA"],["3342","Albertsons Dewar Dr","Rock Springs, WY"],["1337","Albertsons Rosamond","Rosamond, CA"],["515","Albertsons NW Stewart Pkwy","Roseburg, OR"],["4102","Albertsons N Saginaw Blvd","Saginaw, TX"],["1329","Albertsons N Dixie Dr","Saint George, UT"],["1708","Lucky N Redwood Rd","Salt Lake City, UT"],["4563","Albertsons Avendia Pico","San Clemente, CA"],["2509","Albertsons Avenida Pico","San Clemente, CA"],["745","Albertsons 14th St","San Diego, CA"],["2785","Albertsons Lake Murray Blvd","San Diego, CA"],["3179","Albertsons Rancho Bernardo Rd","San Diego, CA"],["594","Albertsons E Bonita Ave","San Dimas, CA"],["750","Albertsons San Elijo Rd S","San Marcos, CA"],["711","Albertsons W San Marcos Blvd","San Marcos, CA"],["708","Albertsons Woodland Pkwy","San Marcos, CA"],["699","Albertsons S Western Ave","San Pedro, CA"],["598","Albertsons E 17th St","Santa Ana, CA"],["1348","Albertsons S Broadway","Santa Maria, CA"],["1360","Albertsons W Bouquet Canyon Rd","Saugus, CA"],["197","Albertsons E Via Linda","Scottsdale, AZ"],["966","Albertsons N Hayden Rd","Scottsdale, AZ"],["2955","Albertsons N Scottsdale Rd","Scottsdale, AZ"],["3408","Albertsons 32nd Ave W","Seattle, WA"],["3275","Albertsons Queen Anne Ave","Seattle, WA"],["614","Albertsons 5th Ave N","Shelby, MT"],["64","Albertsons Coffeen Ave","Sheridan, WY"],["226","Albertsons E Taylor St","Sherman, TX"],["218","Albertsons E Southfield Rd","Shreveport, LA"],["3914","Albertsons Hwy 180 E","Silver City, NM"],["393","Albertsons Madera Rd","Simi Valley, CA"],["142","Albertsons Lucky - 4155 Tweedy Blvd","South Gate, CA"],["265","Albertsons N Nevada","Spokane, WA"],["723","Albertsons Campo Rd","Spring Valley, CA"],["758","Albertsons Sweetwater Rd","Spring Valley, CA"],["570","Albertsons Marcola Rd","Springfield, OR"],["574","Albertsons S Main St","Springfield, OR"],["3194","Albertsons 210 N Highbrook Way","Star, ID"],["977","Albertsons W Grand Ave","Surprise, AZ"],["493","Albertsons Military Rd","Tacoma, WA"],["1382","Albertsons W Kern St","Taft, CA"],["1347","Albertsons S Tucker Rd","Tehachapi, CA"],["4706","Albertsons Rancho California Rd","Temecula, CA"],["753","Albertsons Temecula Pkwy","Temecula, CA"],["611","Albertsons State Line Ave","Texarkana, AR"],["135","Albertsons W 7th St","Texarkana, TX"],["3964","Albertsons E Broadway","Tucson, AZ"],["963","Albertsons E Grant Rd","Tucson, AZ"],["961","Albertsons N Campbell Ave","Tucson, AZ"],["2988","Albertsons N La Canada Dr","Tucson, AZ"],["960","Albertsons N La Cholla Blvd","Tucson, AZ"],["3203","Albertsons N Silverbell Rd","Tucson, AZ"],["3175","Albertsons Foothill Blvd","Tujunga, CA"],["3574","Albertsons Newport Ave","Tustin, CA"],["4139","Albertsons Addison Ave E","Twin Falls, ID"],["599","Albertsons N Campus Ave","Upland, CA"],["3301","Albertsons Copperhill Dr","Valencia, CA"],["1653","Albertsons NE Ave","Vancouver, WA"],["3201","Albertsons E Vista Way","Vista, CA"],["3797","Albertsons S Melrose Dr","Vista, CA"],["3414","Albertsons N Wilbur Ave","Walla Walla, WA"],["301","Albertsons Redcliffs Dr","Washington, UT"],["4267","Albertsons Rufe Snow Dr","Watauga, TX"],["4176","Albertsons E Spring St","Weatherford, TX"],["3412","Albertsons N Miller St","Wenatchee, WA"],["3197","Lucky S Redwood Rd","West Jordan, UT"],["1509","Lucky W 3500 S","West Valley City, UT"],["4145","Albertsons Westminster Blvd","Westminster, CA"],["735","Albertsons Clinton Keith Rd","Wildomar, CA"],["28","Albertsons 26th St E","Williston, ND"],["15","Albertsons Blaine St","Wolf Point, MT"],["3931","Albertsons W 24th St","Yuma, AZ"],["2951","Albertsons W 32nd St","Yuma, AZ"]]},"amigos":{"label":"Amigos","base":"https://www.shopamigos.com","stores":[["3524","Amigos United #3524","Amarillo, TX"],["210","Amigos United #510","Hereford, TX"],["2603","Amigos United #503","Lubbock, TX"],["1308","Amigos United #508","Plainview, TX"]]},"marketstreet":{"label":"Market Street","base":"https://www.shopmarketstreet.com","stores":[["679","Market Street @ 4450 Buffalo Gap Road","Abilene, TX"],["263","Market Street #563","Allen, TX"],["1326","Market Street @ 2530 S. Georgia","Amarillo, TX"],["688","Market Street @ 8761 Coulter Street South","Amarillo, TX"],["1860","Market Street #1860","Colleyville, TX"],["1564","Market Street #564","Coppell, TX"],["3565","Market Street #3565","Flower Mound, TX"],["2562","Market Street #2562","Frisco, TX"],["685","Market Street @ 4268 Legacy Drive","Frisco, TX"],["2802","Market Street @ 3405 50th Street","Lubbock, TX"],["3543","Market Street @ 4205 98th Street","Lubbock, TX"],["2553","Market Street @ 4425 19th Street","Lubbock, TX"],["696","Market Street @ 3145 E Broad St","Mansfield, TX"],["4561","Market Street #4561","Mckinney, TX"],["3674","Market Street @ 4706 North Midkiff Road","Midland, TX"],["675","Market Street @ 4950 E. 42ND Street","Odessa, TX"],["4566","Market Street #4566","Plano, TX"],["921","Market Street @ 2200 Unser Boulevard Southeast","Rio Rancho, NM"],["78","Market Street SAN #678","San Angelo, TX"],["927","Market Street @ 600 N Guadalupe","Santa Fe, NM"],["417","Market Street @ 4590 Kell Blvd","Wichita Falls, TX"]]}};
 const PATH = "/abs/pub/dce/offergallery/J4UProgram1/offer/upcs";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE ONLY LINE YOU NEED TO CHANGE.
+// Leave "" to call the banner sites directly — a browser will block every
+// response, because the APIs only allow requests from the banner's own site.
+// Paste your Cloudflare Worker URL here to make the tool work, e.g.
+//   const PROXY_BASE = "https://albertsons-offer-check.flipp.workers.dev";
+const PROXY_BASE = "";
+// Only if you set a SHARED_TOKEN secret on the Worker:
+const PROXY_TOKEN = "";
+// ─────────────────────────────────────────────────────────────────────────────
+
 const CONCURRENCY = 6;
 
 const $ = id => document.getElementById(id);
@@ -155,8 +174,15 @@ bannerSel.addEventListener("change", () => { storeFilter.value = ""; populateSto
 storeFilter.addEventListener("input", populateStores);
 populateStores();
 
-async function checkStore(base, storeCode, offerId, signal) {
-  const url = `${base}${PATH}?storeId=${encodeURIComponent(storeCode)}&offerId=${encodeURIComponent(offerId)}`;
+function buildUrl(bannerKey, storeCode, offerId) {
+  const qs = `storeId=${encodeURIComponent(storeCode)}&offerId=${encodeURIComponent(offerId)}`;
+  if (!PROXY_BASE) return `${BANNERS[bannerKey].base}${PATH}?${qs}`;
+  const tok = PROXY_TOKEN ? `&token=${encodeURIComponent(PROXY_TOKEN)}` : "";
+  return `${PROXY_BASE.replace(/\/+$/, "")}/${bannerKey}${PATH}?${qs}${tok}`;
+}
+
+async function checkStore(bannerKey, storeCode, offerId, signal) {
+  const url = buildUrl(bannerKey, storeCode, offerId);
   let res, text = "", body = null;
   try {
     res = await fetch(url, { signal, headers: { "Accept": "application/json" } });
@@ -179,6 +205,11 @@ async function checkStore(base, storeCode, offerId, signal) {
     return { state: "error", http: res.status,
              detail: [e.code, e.msg].filter(Boolean).join(" — ") || "Unspecified API error" };
   }
+  // A third shape, returned for malformed store codes:
+  // {"error": "Invalid store ID. It must be an integer."}
+  if (body && typeof body.error === "string" && body.error) {
+    return { state: "error", http: res.status, detail: body.error };
+  }
   return { state: "error", http: res.status,
            detail: text ? `Unrecognized response: ${text.slice(0, 140)}`
                         : `HTTP ${res.status} with an empty body` };
@@ -198,7 +229,8 @@ function escapeHtml(s) {
 }
 
 async function run() {
-  const b = BANNERS[bannerSel.value];
+  const bannerKey = bannerSel.value;
+  const b = BANNERS[bannerKey];
   const offerId = offerIn.value.trim();
   if (!/^\d+$/.test(offerId)) {
     msg.innerHTML = `<span class="err">Enter a numeric Offer ID.</span>`;
@@ -221,9 +253,12 @@ async function run() {
   const rowFor = new Map();
   for (const s of targets) {
     const tr = document.createElement("tr");
+    const url = buildUrl(bannerKey, s[0], offerId);
     tr.innerHTML = `<td>${escapeHtml(s[0])}</td><td>${escapeHtml(s[1])}</td>` +
                    `<td>${escapeHtml(s[2])}</td><td class="num">—</td>` +
-                   `<td><span class="pill">Checking…</span></td>`;
+                   `<td><span class="pill">Checking…</span></td>` +
+                   `<td class="copycell"><button type="button" class="copy" ` +
+                   `data-url="${escapeHtml(url)}" title="${escapeHtml(url)}">Copy URL</button></td>`;
     rowsEl.appendChild(tr);
     rowFor.set(s[0], tr);
   }
@@ -243,7 +278,7 @@ async function run() {
       const s = targets[next++];
       let r;
       try {
-        r = await checkStore(b.base, s[0], offerId, controller.signal);
+        r = await checkStore(bannerKey, s[0], offerId, controller.signal);
       } catch (err) {
         if (err.name === "AbortError") { aborted = true; return; }
         r = { state: "error", detail: String(err.message || err) };
@@ -280,6 +315,40 @@ function applyFilter() {
     tr.hidden = only && tr.dataset.bad !== "1";
   }
 }
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) { /* fall back to the legacy path below */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:-1000px;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch (e) { return false; }
+}
+
+rowsEl.addEventListener("click", async e => {
+  const btn = e.target.closest("button.copy");
+  if (!btn) return;
+  const ok = await copyText(btn.dataset.url);
+  btn.classList.remove("copied", "failed");
+  btn.classList.add(ok ? "copied" : "failed");
+  btn.textContent = ok ? "Copied" : "Copy failed";
+  clearTimeout(btn._t);
+  btn._t = setTimeout(() => {
+    btn.classList.remove("copied", "failed");
+    btn.textContent = "Copy URL";
+  }, 1500);
+});
+
 onlyBad.addEventListener("change", applyFilter);
 cancelBtn.addEventListener("click", () => controller && controller.abort());
 runBtn.addEventListener("click", run);
